@@ -85,7 +85,7 @@ class FasterPay_Pingback {
 	    $invoice = mysql_fetch_assoc(select_query('tblinvoices', '*', ['id' => $invoiceId]));
 	    $hosting = [];
 
-    	$hostIdArray = $this->helper->getHostIdFromInvoice($params['invoiceid']);
+    	$hostIdArray = $this->helper->getHostIdFromInvoice($invoiceId);
 	    if ($hostIdArray) {
 	        $hosting = mysql_fetch_assoc(select_query(
 	            'tblhosting', // table name
