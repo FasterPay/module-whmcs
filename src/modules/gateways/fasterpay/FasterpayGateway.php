@@ -6,6 +6,7 @@ class Fasterpay_Gateway {
     var $helper = null;
 
     const GATEWAY_NAME = 'fasterpay';
+    const MODULE_SOURCE = 'whmcs';
 	const FP_API_PAYMENT_FORM_URL = 'https://pay.fasterpay.com/payment/form';
 
 	public function __construct() {
@@ -35,7 +36,8 @@ class Fasterpay_Gateway {
             'api_key' => $params['appKey'],
             'merchant_order_id' => $this->getMerchantOrderId($params),
             'description' => $params['description'],
-            'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete'
+            'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete',
+            'module_source' => self::MODULE_SOURCE
         );
 
         return $parameters;
@@ -50,7 +52,8 @@ class Fasterpay_Gateway {
             'api_key' => $params['appKey'],
             'merchant_order_id' => $merchant_order_id,
             'description' => $params['description'],
-            'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete'
+            'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete',
+            'module_source' => self::MODULE_SOURCE
         );
 
         $parameters['recurring_name'] = $params['description'];
