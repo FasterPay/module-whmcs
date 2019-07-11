@@ -5,7 +5,8 @@ if (!defined("WHMCS")) {
 
 
 require_once(ROOTDIR . '/modules/gateways/fasterpay/helpers/FasterpayHelper.php');
-require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayGateway.php'); 
+require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayGateway.php');
+require_once(ROOTDIR . '/includes/api/fasterpay_api/lib/autoload.php');
 
 function fasterpay_MetaData()
 {
@@ -24,7 +25,18 @@ function fasterpay_config()
         "UsageNotes" => array("Type" => "System", "Value" => "Please read the documentation to get more informations"),
         "appKey" => array("FriendlyName" => "Public Key", "Type" => "text", "Size" => "40"),
         "secretKey" => array("FriendlyName" => "Private Key", "Type" => "text", "Size" => "40"),
-        "success_url" => array("FriendlyName" => "Success Url", "Type" => "text", "Size" => "200")
+        "success_url" => array("FriendlyName" => "Success Url", "Type" => "text", "Size" => "200"),
+        "isTest" => array("FriendlyName" => "Is Test", "Type" => "yesno", "Description" => "Tick this box to enable Test mode"),
+        'signVersion' => array(
+            'FriendlyName' => 'Signature Version',
+            'Type' => 'dropdown',
+            'Options' => array(
+                'v1' => 'Version 1',
+                'v2' => 'Version 2',
+            ),
+            'Description' => '',
+        ),
+
     );
 
     return $configs;
@@ -33,12 +45,105 @@ function fasterpay_config()
 function fasterpay_link($params)
 {
 
-    $fasterpayGateway = new Fasterpay_Gateway();
+    $gateway = new FasterPay\Gateway([
+        'publicKey' => $params['appKey'],
+        'privateKey' => $params['secretKey'],
+        'isTest' => $params['isTest'] == 'on' ? 1 : 0,
+    ]);
+    $fasterPayModel = new Fasterpay_Gateway();
 
-    $parameters = $fasterpayGateway->prepareData($params);
-
-    $code = $fasterpayGateway->buildForm($parameters);
-
-    return $code;
+    $form = $gateway->paymentForm()->buildForm(
+        $fasterPayModel->prepareData($params),
+        [
+            'autoSubmit' => false,
+            'hidePayButton' => false
+        ]
+    );
+    return $form;
 }
 
+function fasterpay_refund($params)
+{
+    if (strtolower($params['paymentmethod']) != 'fasterpay') {
+        return array(
+            'status' => 'error',
+            'rawdata' => 'Wrong payment gateway',
+        );
+    }
+
+    $gateway = new FasterPay\Gateway([
+        'publicKey' => $params['appKey'],
+        'privateKey' => $params['secretKey'],
+        'isTest' => $params['isTest'] == 'on' ? 1 : 0,
+    ]);
+
+    $orderId = $params['transid'];
+    $amount = $params['amount'];
+
+    try {
+        $refundResponse = $gateway->paymentService()->refund($orderId, $amount);
+    } catch (FasterPay\Exception $e) {
+        return array(
+            'status' => 'error',
+            'rawdata' => $e->getMessage(),
+        );
+    }
+    if ($refundResponse->isSuccessful()) {
+        return array(
+            'status' => 'success',
+            'rawdata' => 'success',
+            'transid' => $orderId,
+        );
+    } else {
+        return array(
+            'status' => 'error',
+            'rawdata' => $refundResponse->getErrors()->getMessage(),
+        );
+    }
+
+}
+
+function fasterpay_cancelSubscription($params)
+{
+    if (empty($params['subscriptionID'])) {
+        return array(
+            'status' => 'error',
+            'rawdata' => 'missing subscription id'
+        );
+    }
+
+    if (strtolower($params['paymentmethod']) != 'fasterpay') {
+        return array(
+            'status' => 'error',
+            'rawdata' => 'Wrong payment gateway',
+        );
+    }
+
+    $gateway = new FasterPay\Gateway([
+        'publicKey' => $params['appKey'],
+        'privateKey' => $params['secretKey'],
+        'isTest' => $params['isTest'] == 'on' ? 1 : 0,
+    ]);
+
+    $subscriptionId = $params['subscriptionID'];
+    try {
+        $cancellationResponse = $gateway->subscriptionService()->cancel($subscriptionId);
+    } catch (FasterPay\Exception $e) {
+        return array(
+            'status' => 'error',
+            'rawdata' => $e->getMessage(),
+        );
+
+    }
+    if ($cancellationResponse->isSuccessful()) {
+        return array(
+            'status' => 'success',
+            'rawdata' => 'success',
+        );
+    } else {
+        return array(
+            'status' => 'error',
+            'rawdata' => $cancellationResponse->getErrors()->getMessage(),
+        );
+    }
+}

@@ -7,3 +7,6 @@ Fasterpay module for WHMCS.
 
 # Installation
 To install Fasterpay WHMCS module, please follow the [instructions](https://docs.fasterpay.com/integration/plugins/whmcs).
+
+After cloning the repository don't forget to install FasterPay PHP API library (**required**):
+`git submodule add git@github.com:FasterPay/fasterpay-php.git src/includes/api/fasterpay_api`
