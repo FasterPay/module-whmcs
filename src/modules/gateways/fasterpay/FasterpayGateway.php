@@ -7,11 +7,10 @@ class Fasterpay_Gateway {
 
     const GATEWAY_NAME = 'fasterpay';
     const MODULE_SOURCE = 'whmcs';
-	const FP_API_PAYMENT_FORM_URL = 'https://pay.fasterpay.com/payment/form';
 
-	public function __construct() {
-		$this->helper = new Fasterpay_Helper();
-	}
+    public function __construct() {
+        $this->helper = new Fasterpay_Helper();
+    }
 
     public function prepareData($params) {
 
@@ -22,8 +21,6 @@ class Fasterpay_Gateway {
         } else {
             $parameters = $this->prepareOnetimeData($params);
         }
-
-        $parameters['hash'] = $this->generateHash($parameters, $params['secretKey']);
 
         return $parameters;
     }
@@ -37,7 +34,8 @@ class Fasterpay_Gateway {
             'merchant_order_id' => $this->getMerchantOrderId($params),
             'description' => $params['description'],
             'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete',
-            'module_source' => self::MODULE_SOURCE
+            'module_source' => self::MODULE_SOURCE,
+            'sign_version' => $params['signVersion']
         );
 
         return $parameters;
@@ -53,7 +51,8 @@ class Fasterpay_Gateway {
             'merchant_order_id' => $merchant_order_id,
             'description' => $params['description'],
             'success_url' => !empty($params['success_url']) ? $params['success_url'] : $params['systemurl'] . '/cart.php?a=complete',
-            'module_source' => self::MODULE_SOURCE
+            'module_source' => self::MODULE_SOURCE,
+            'sign_version' => $params['signVersion']
         );
 
         $parameters['recurring_name'] = $params['description'];
@@ -76,30 +75,11 @@ class Fasterpay_Gateway {
         return $parameters;
     }
 
-    public function generateHash($parameters, $key) {
-        ksort($parameters);
-        return hash('sha256', http_build_query($parameters) . $key);
-    }
-
     public function getMerchantOrderId($params)
     {
         $fasterpayHelper = new FasterPay_Helper();
         $hostIdArray = $fasterpayHelper->getHostIdFromInvoice($params['invoiceid']);
 
         return $hostIdArray['id'].":".$params['invoiceid'].":".$hostIdArray['type'].":".$params['clientdetails']['userid'];
-    }
-
-
-    public function buildForm($parameters) {
-        $form = '<form align="center" method="post" action="'.self::FP_API_PAYMENT_FORM_URL.'">';
-
-        foreach ($parameters as $key =>$val) {
-            $form .= '<input type="hidden" name="'.$key.'" value="'.$val.'" />';
-        }
-
-        $form .= '<input type="Submit" value="Pay Now"/></form>';
-
-        return $form;
-
     }
 }
