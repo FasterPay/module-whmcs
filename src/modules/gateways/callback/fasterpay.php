@@ -65,7 +65,7 @@ class FasterPay_Pingback {
         return $gateway;
     }
 
-    public function validatePingback($gateway = array(), $params) {
+    public function validatePingback($gateway = array()) {
 
         $fpGateway = new FasterPay\Gateway([
             'publicKey' => $gateway['appKey'],
@@ -77,9 +77,6 @@ class FasterPay_Pingback {
         if (!empty($_SERVER['HTTP_X_FASTERPAY_SIGNATURE_VERSION'])) {
             $signVersion = $_SERVER['HTTP_X_FASTERPAY_SIGNATURE_VERSION'];
         }
-
-        $pingbackData = null;
-        $validationParams = array();
 
         switch ($signVersion) {
             case FasterPay\Services\Signature::SIGN_VERSION_1:
