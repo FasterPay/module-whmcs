@@ -97,11 +97,6 @@ function fasterpay_refund($params)
         );
     }
     if ($refundResponse->isSuccessful()) {
-        // return array(
-        //     'status' => 'success',
-        //     'rawdata' => 'success',
-        //     'transid' => $orderId,
-        // );
         $customStatus = array(
             'message_type' => 'custom',
             'title' => 'Pending Refund Transaction',

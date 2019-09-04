@@ -34,8 +34,6 @@ class FasterPay_Pingback {
     }
 
     public function run() {
-        // file_put_contents('./fp_log.txt', 'PINGBACK INPUT: ' . json_encode([$_SERVER, json_decode(file_get_contents('php://input'))]));
-
         $isPaymentEvent = $this->request['event'] == self::PINGBACK_PAYMENT_EVENT;
         $isRefundEvent = $this->request['event'] == self::PINGBACK_FULL_REFUND_EVENT || $this->request['event'] == self::PINGBACK_PARTIAL_REFUND_EVENT;
         $invoiceId = $this->getInvoiceIdPingback($isRefundEvent);
@@ -199,26 +197,20 @@ class FasterPay_Pingback {
             $refundedAmount = $this->getInvoiceRefundedAmount($invoiceId);
             $pingbackRefundedAmount = $paymentOrder['refunded_amount'];
 
-            // file_put_contents('./fp_log.txt', 'REFUND PROCESS: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount]));
-
             // if pingback refunded amount <= invoice refunded amount -> transaction processing/processed -> return ok
             if (!($pingbackRefundedAmount > $refundedAmount
                 || ($pingbackRefundedAmount == $refundedAmount && $pingbackRefundedAmount == 0))) {
-                // file_put_contents('./fp_log.txt', 'REFUND BYPASS: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount]));
                 return;
             }
 
             $transId = $transaction->id;
             $result = refundInvoicePayment($transId, $amount, $sendToGateway, $addAsCredit, $sendEmail, $refundTransId, $reverse);
 
-            // file_put_contents('./fp_log.txt', 'REFUND FINISH: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount, $result]));
-
             if ($result != 'success') {
                 throw new \Exception($result);
             }
         } catch (\Exception $e) {
-            // file_put_contents('./fp_log.txt', 'REFUND ERROR: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount, $e->getMessage()]));
-            die($e->getMessage());
+            exit($e->getMessage());
         }
     }
 
