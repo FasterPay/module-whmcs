@@ -24,6 +24,12 @@ class FasterPay_Pingback {
     const PINGBACK_PAYMENT_EVENT = 'payment';
     const PINGBACK_FULL_REFUND_EVENT = 'refund';
     const PINGBACK_PARTIAL_REFUND_EVENT = 'partial_refund';
+    
+    const PINGBACK_REFUND_EVENTS = array(
+        self::PINGBACK_PARTIAL_REFUND_EVENT,
+        self::PINGBACK_FULL_REFUND_EVENT
+    );
+    
     const PINGBACK_STATUS_SUCCESS = 'successful';
 
     public function __construct($request) {
@@ -325,7 +331,7 @@ class FasterPay_Pingback {
 
     private function isRefundEvent()
     {
-        return $this->request['event'] == self::PINGBACK_FULL_REFUND_EVENT || $this->request['event'] == self::PINGBACK_PARTIAL_REFUND_EVENT;
+        return in_aray($this->request['event'], self::PINGBACK_REFUND_EVENTS);
     }
 
     private function validateRefundData()
