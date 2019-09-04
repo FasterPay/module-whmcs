@@ -215,28 +215,21 @@ class FasterPay_Pingback {
     }
 
     public function getInvoiceRefundedAmount($invoiceId) {
-        $result = select_query("tblinvoices", "userid,subtotal,credit,total", array( "id" => $invoiceId ));
+        $result = select_query("tblaccounts", "SUM(amountout)", array( "invoiceid" => $invoiceId ));
         $data = mysql_fetch_array($result);
-        $userid = $data["userid"];
-        $subtotal = $data["subtotal"];
-        $credit = $data["credit"];
-        $total = $data["total"];
-        $result = select_query("tblaccounts", "SUM(amountin)-SUM(amountout)", array( "invoiceid" => $invoiceId ));
-        $data = mysql_fetch_array($result);
-        $amountpaid = $data[0];
-        $balance = $total - $amountpaid;
-        return round($balance, 2);
+        $refundedAmount = $data[0];
+        return round($refundedAmount, 2);
     }
 
     public function validateInvoiceId() {
         if(empty($this->invoiceId)) {
             exit("Invoice is not found");
-        } elseif ($this->invoiceId == 'Invoice is already paid') {
+        } elseif (!is_numeric($this->invoiceId)) {
             exit($this->invoiceId);
         }
     }
 
-    public function getInvoiceIdPingback($skipStatusCheck = false)  {
+    public function getInvoiceIdPingback($isRefundEvent = false)  {
         $requestData = $this->request;
 
         $goodsId = $requestData['payment_order']['merchant_order_id'];
@@ -263,9 +256,12 @@ class FasterPay_Pingback {
                 return null;
             }
 
-            if ($data['status'] == 'Paid' && !$skipStatusCheck) {
+            if ($data['status'] == 'Paid' && !$isRefundEvent) {
                 $this->invoiceId = 'Invoice is already paid';
                 return 'Invoice is already paid';
+            } elseif ($data['status'] != 'Paid' && $isRefundEvent) {
+                $this->invoiceId = 'Invoice is unpaid';
+                return 'Invoice is unpaid';
             } else {
                 $invoiceId = $goodsArray[1];
             }
