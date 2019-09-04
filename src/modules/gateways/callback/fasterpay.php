@@ -19,7 +19,7 @@ require_once(ROOTDIR . '/includes/api/fasterpay_api/lib/autoload.php');
 class FasterPay_Pingback {
 
     protected $request = array();
-    protected $invoiceId = null;
+    protected $error = null;
 
     const PINGBACK_PAYMENT_EVENT = 'payment';
     const PINGBACK_FULL_REFUND_EVENT = 'refund';
@@ -40,24 +40,28 @@ class FasterPay_Pingback {
     }
 
     public function run() {
-        $invoiceId = $this->getInvoiceIdPingback($this->isRefundEvent());
+        try {
+            $invoiceId = $this->getInvoiceIdPingback($this->isRefundEvent());
 
-        $this->validateInvoiceId($invoiceId);
+            $this->validateInvoiceId($invoiceId);
 
-        $gateway = $this->getGatewayData($invoiceId);
-        if (!$gateway["type"]) {
-            exit($gateway['name'] . " is not activated");
-        }
+            $gateway = $this->getGatewayData($invoiceId);
+            if (!$gateway["type"]) {
+                exit($gateway['name'] . " is not activated");
+            }
 
-        if (!$this->validatePingback($gateway, array('secret' => $gateway['secretKey']))) {
-            logTransaction($gateway["name"], $this->request, "Unsuccessful");
-            exit('Invalid Pingback');
-        }
+            if (!$this->validatePingback($gateway, array('secret' => $gateway['secretKey']))) {
+                logTransaction($gateway["name"], $this->request, "Unsuccessful");
+                exit('Invalid Pingback');
+            }
 
-        if ($this->isPaymentEvent() && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
-            $this->processDeliverable($invoiceId, $gateway);
-        } elseif ($this->isRefundEvent()) {
-            $this->processRefundPingback($invoiceId, $gateway);
+            if ($this->isPaymentEvent() && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
+                $this->processDeliverable($invoiceId, $gateway);
+            } elseif ($this->isRefundEvent()) {
+                $this->processRefundPingback($invoiceId, $gateway);
+            }
+        } catch (\Exception $e) {
+            exit($e->getMessage());
         }
 
         exit('OK');
@@ -232,10 +236,10 @@ class FasterPay_Pingback {
     }
 
     public function validateInvoiceId($invoiceId) {
-        if(empty($invoiceId)) {
+        if (!empty($this->error)) {
+            exit($this->error);
+        } elseif (empty($invoiceId) || !is_numeric($invoiceId)) {
             exit("Invoice is not found");
-        } elseif (!is_numeric($invoiceId)) {
-            exit($invoiceId);
         }
     }
 
@@ -267,9 +271,11 @@ class FasterPay_Pingback {
             }
 
             if ($data['status'] == 'Paid' && !$isRefundEvent) {
-                return 'Invoice is already paid';
+                $this->error = 'Invoice is already paid';
+                return null;
             } elseif ($data['status'] != 'Paid' && $isRefundEvent) {
-                return 'Invoice is unpaid';
+                $this->error = 'Invoice is unpaid';
+                return null;
             } else {
                 $invoiceId = $goodsArray[1];
             }
@@ -331,7 +337,7 @@ class FasterPay_Pingback {
 
     private function isRefundEvent()
     {
-        return in_aray($this->request['event'], self::PINGBACK_REFUND_EVENTS);
+        return in_array($this->request['event'], self::PINGBACK_REFUND_EVENTS);
     }
 
     private function validateRefundData()
