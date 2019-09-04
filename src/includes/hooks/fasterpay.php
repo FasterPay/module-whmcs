@@ -1,6 +1,7 @@
 <?php
 add_hook('AdminAreaPage', 1, function($vars) {
-    if ($vars['filename'] == 'invoices'
+    if (!empty($vars['filename'])
+    	&& $vars['filename'] == 'invoices'
     	&& !empty($_GET['action'])
     	&& $_GET['action'] == 'edit'
     	&& !empty($_GET['id'])

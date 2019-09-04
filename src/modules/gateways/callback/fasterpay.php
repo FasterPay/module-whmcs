@@ -34,11 +34,9 @@ class FasterPay_Pingback {
     }
 
     public function run() {
-        $isPaymentEvent = $this->request['event'] == self::PINGBACK_PAYMENT_EVENT;
-        $isRefundEvent = $this->request['event'] == self::PINGBACK_FULL_REFUND_EVENT || $this->request['event'] == self::PINGBACK_PARTIAL_REFUND_EVENT;
-        $invoiceId = $this->getInvoiceIdPingback($isRefundEvent);
+        $invoiceId = $this->getInvoiceIdPingback($this->isRefundEvent());
 
-        $this->validateInvoiceId();
+        $this->validateInvoiceId($invoiceId);
 
         $gateway = $this->getGatewayData($invoiceId);
         if (!$gateway["type"]) {
@@ -50,11 +48,9 @@ class FasterPay_Pingback {
             exit('Invalid Pingback');
         }
 
-        if ($isPaymentEvent && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
+        if ($this->isPaymentEvent() && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
             $this->processDeliverable($invoiceId, $gateway);
-        }
-
-        if ($isRefundEvent) {
+        } elseif ($this->isRefundEvent()) {
             $this->processRefundPingback($invoiceId, $gateway);
         }
 
@@ -106,6 +102,14 @@ class FasterPay_Pingback {
         }
 
         if (!$fpGateway->pingback()->validate($validationParams)) {
+            return false;
+        }
+
+        if ($this->isPaymentEvent() && !$this->validatePaymentData()) {
+            return false;
+        }
+
+        if ($this->isRefundEvent() && !$this->validateRefundData()) {
             return false;
         }
 
@@ -221,11 +225,11 @@ class FasterPay_Pingback {
         return round($refundedAmount, 2);
     }
 
-    public function validateInvoiceId() {
-        if(empty($this->invoiceId)) {
+    public function validateInvoiceId($invoiceId) {
+        if(empty($invoiceId)) {
             exit("Invoice is not found");
-        } elseif (!is_numeric($this->invoiceId)) {
-            exit($this->invoiceId);
+        } elseif (!is_numeric($invoiceId)) {
+            exit($invoiceId);
         }
     }
 
@@ -257,10 +261,8 @@ class FasterPay_Pingback {
             }
 
             if ($data['status'] == 'Paid' && !$isRefundEvent) {
-                $this->invoiceId = 'Invoice is already paid';
                 return 'Invoice is already paid';
             } elseif ($data['status'] != 'Paid' && $isRefundEvent) {
-                $this->invoiceId = 'Invoice is unpaid';
                 return 'Invoice is unpaid';
             } else {
                 $invoiceId = $goodsArray[1];
@@ -284,8 +286,6 @@ class FasterPay_Pingback {
 
             $invoiceId = $this->getInvoiceFromInvoiceList($invoiceList);
         }
-
-        $this->invoiceId = $invoiceId;
 
         return $invoiceId;
     }
@@ -316,6 +316,50 @@ class FasterPay_Pingback {
     function updateSubscriptionId($subscriptionId, $conditions)
     {
         update_query('tblhosting', ['subscriptionid' => $subscriptionId], $conditions);
+    }
+
+    private function isPaymentEvent()
+    {
+        return $this->request['event'] == self::PINGBACK_PAYMENT_EVENT;
+    }
+
+    private function isRefundEvent()
+    {
+        return $this->request['event'] == self::PINGBACK_FULL_REFUND_EVENT || $this->request['event'] == self::PINGBACK_PARTIAL_REFUND_EVENT;
+    }
+
+    private function validateRefundData()
+    {
+        if (!isset($this->request['payment_order']['id'])) {
+            return false;
+        }
+
+        if (!isset($this->request['payment_order']['merchant_order_id'])) {
+            return false;
+        }
+
+        if (!isset($this->request['payment_order']['refunded_amount'])) {
+            return false;
+        }
+
+        if (!isset($this->request['payment_order']['refund_amount'])) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function validatePaymentData()
+    {
+        if (!isset($this->request['payment_order']['id'])) {
+            return false;
+        }
+
+        if (isset($this->request['subscription']) && !isset($this->request['subscription']['id'])) {
+            return false;
+        }
+
+        return true;
     }
 }
 
