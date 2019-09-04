@@ -9,6 +9,7 @@ if (!file_exists("../../../init.php")) {
 }
 
 include(ROOTDIR . "/includes/functions.php");
+include(ROOTDIR . "/includes/ccfunctions.php");
 include(ROOTDIR . "/includes/gatewayfunctions.php");
 include(ROOTDIR . "/includes/invoicefunctions.php");
 require_once(ROOTDIR . '/modules/gateways/fasterpay/helpers/FasterpayHelper.php');
@@ -20,7 +21,9 @@ class FasterPay_Pingback {
     protected $request = array();
     protected $invoiceId = null;
 
-    const PINGBACK_PAYMENT_TYPE = 'payment';
+    const PINGBACK_PAYMENT_EVENT = 'payment';
+    const PINGBACK_FULL_REFUND_EVENT = 'refund';
+    const PINGBACK_PARTIAL_REFUND_EVENT = 'partial_refund';
     const PINGBACK_STATUS_SUCCESS = 'successful';
 
     public function __construct($request) {
@@ -31,13 +34,15 @@ class FasterPay_Pingback {
     }
 
     public function run() {
+        // file_put_contents('./fp_log.txt', 'PINGBACK INPUT: ' . json_encode([$_SERVER, json_decode(file_get_contents('php://input'))]));
 
-        $invoiceId = $this->getInvoiceIdPingback();
+        $isPaymentEvent = $this->request['event'] == self::PINGBACK_PAYMENT_EVENT;
+        $isRefundEvent = $this->request['event'] == self::PINGBACK_FULL_REFUND_EVENT || $this->request['event'] == self::PINGBACK_PARTIAL_REFUND_EVENT;
+        $invoiceId = $this->getInvoiceIdPingback($isRefundEvent);
 
         $this->validateInvoiceId();
 
         $gateway = $this->getGatewayData($invoiceId);
-
         if (!$gateway["type"]) {
             exit($gateway['name'] . " is not activated");
         }
@@ -47,12 +52,15 @@ class FasterPay_Pingback {
             exit('Invalid Pingback');
         }
 
-        if ($this->request['event'] == self::PINGBACK_PAYMENT_TYPE && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
+        if ($isPaymentEvent && $this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS) {
             $this->processDeliverable($invoiceId, $gateway);
         }
 
-        echo 'OK';
-        exit();
+        if ($isRefundEvent) {
+            $this->processRefundPingback($invoiceId, $gateway);
+        }
+
+        exit('OK');
     }
 
     public function getInvoiceData($invoiceId) {
@@ -167,6 +175,67 @@ class FasterPay_Pingback {
         logTransaction($gateway['name'], $this->request, "Successful");
     }
 
+    public function processRefundPingback($invoiceId, $gateway)
+    {
+        $paymentOrder = $this->request['payment_order'];
+        $fpTransId = $paymentOrder['id'];
+        $amount = $paymentOrder['refund_amount'];
+        $sendToGateway = true;
+        $addAsCredit = "";
+        $sendEmail = true;
+        $refundTransId = "";
+        $reverse = false;
+
+        try {
+            $transaction = WHMCS\Billing\Payment\Transaction::where(array(
+                'transid' => $fpTransId,
+                'invoiceid' => $invoiceId
+            ))->first();
+
+            if (empty($transaction)) {
+                throw new \Exception('Invalid transaction');
+            }
+
+            $refundedAmount = $this->getInvoiceRefundedAmount($invoiceId);
+            $pingbackRefundedAmount = $paymentOrder['refunded_amount'];
+
+            // file_put_contents('./fp_log.txt', 'REFUND PROCESS: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount]));
+
+            // if pingback refunded amount <= invoice refunded amount -> transaction processing/processed -> return ok
+            if (!($pingbackRefundedAmount > $refundedAmount
+                || ($pingbackRefundedAmount == $refundedAmount && $pingbackRefundedAmount == 0))) {
+                // file_put_contents('./fp_log.txt', 'REFUND BYPASS: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount]));
+                return;
+            }
+
+            $transId = $transaction->id;
+            $result = refundInvoicePayment($transId, $amount, $sendToGateway, $addAsCredit, $sendEmail, $refundTransId, $reverse);
+
+            // file_put_contents('./fp_log.txt', 'REFUND FINISH: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount, $result]));
+
+            if ($result != 'success') {
+                throw new \Exception($result);
+            }
+        } catch (\Exception $e) {
+            // file_put_contents('./fp_log.txt', 'REFUND ERROR: ' . json_encode([$invoiceId, $refundedAmount, $pingbackRefundedAmount, $e->getMessage()]));
+            die($e->getMessage());
+        }
+    }
+
+    public function getInvoiceRefundedAmount($invoiceId) {
+        $result = select_query("tblinvoices", "userid,subtotal,credit,total", array( "id" => $invoiceId ));
+        $data = mysql_fetch_array($result);
+        $userid = $data["userid"];
+        $subtotal = $data["subtotal"];
+        $credit = $data["credit"];
+        $total = $data["total"];
+        $result = select_query("tblaccounts", "SUM(amountin)-SUM(amountout)", array( "invoiceid" => $invoiceId ));
+        $data = mysql_fetch_array($result);
+        $amountpaid = $data[0];
+        $balance = $total - $amountpaid;
+        return round($balance, 2);
+    }
+
     public function validateInvoiceId() {
         if(empty($this->invoiceId)) {
             exit("Invoice is not found");
@@ -175,7 +244,7 @@ class FasterPay_Pingback {
         }
     }
 
-    public function getInvoiceIdPingback()	{
+    public function getInvoiceIdPingback($skipStatusCheck = false)  {
         $requestData = $this->request;
 
         $goodsId = $requestData['payment_order']['merchant_order_id'];
@@ -202,7 +271,7 @@ class FasterPay_Pingback {
                 return null;
             }
 
-            if ($data['status'] == 'Paid') {
+            if ($data['status'] == 'Paid' && !$skipStatusCheck) {
                 $this->invoiceId = 'Invoice is already paid';
                 return 'Invoice is already paid';
             } else {

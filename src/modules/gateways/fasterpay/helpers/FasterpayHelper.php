@@ -193,8 +193,3 @@ class Fasterpay_Helper {
     }
 
 }
-
-
-
-
-

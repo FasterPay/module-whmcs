@@ -71,14 +71,22 @@ function fasterpay_refund($params)
         );
     }
 
+    $orderId = $params['transid'];
+    $amount = $params['amount'];
+
+    if (!isAdminLoggedIn()) {
+        return array(
+            'status' => 'success',
+            'rawdata' => 'success',
+            'transid' => $orderId,
+        );
+    }
+
     $gateway = new FasterPay\Gateway([
         'publicKey' => $params['appKey'],
         'privateKey' => $params['secretKey'],
         'isTest' => $params['isTest'] == 'on' ? 1 : 0,
     ]);
-
-    $orderId = $params['transid'];
-    $amount = $params['amount'];
 
     try {
         $refundResponse = $gateway->paymentService()->refund($orderId, $amount);
@@ -89,10 +97,19 @@ function fasterpay_refund($params)
         );
     }
     if ($refundResponse->isSuccessful()) {
+        // return array(
+        //     'status' => 'success',
+        //     'rawdata' => 'success',
+        //     'transid' => $orderId,
+        // );
+        $customStatus = array(
+            'message_type' => 'custom',
+            'title' => 'Pending Refund Transaction',
+            'content' => 'Your transaction is being processed!'
+        );
         return array(
-            'status' => 'success',
-            'rawdata' => 'success',
-            'transid' => $orderId,
+            'status' => $customStatus['message_type'] . ':' . $customStatus['title'] . ':' . $customStatus['content'],
+            'rawdata' => $customStatus['content']
         );
     } else {
         return array(
@@ -146,4 +163,9 @@ function fasterpay_cancelSubscription($params)
             'rawdata' => $cancellationResponse->getErrors()->getMessage(),
         );
     }
+}
+
+function isAdminLoggedIn()
+{
+    return !empty($_SESSION['adminid']);
 }
