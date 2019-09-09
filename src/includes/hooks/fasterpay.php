@@ -6,7 +6,8 @@ add_hook('AdminAreaPage', 1, function($vars) {
     	&& $_GET['action'] == 'edit'
     	&& !empty($_GET['id'])
     	&& !empty($_GET['refundattempted'])
-    	&& !empty($_GET['refund_result_msg'])) {
+    	&& !empty($_GET['refund_result_msg'])
+    	&& !in_array($_GET['refund_result_msg'], ['success', 'error'])) {
     	$infoboxContent = explode(':', $_GET['refund_result_msg']);
     	$infoboxContent = is_array($infoboxContent) ? $infoboxContent : null;
 

@@ -2,16 +2,16 @@
 # Required File Includes
 if (!file_exists("../../../init.php")) {
     // For v5.x
-    include("../../../dbconnect.php");
+    include_once("../../../dbconnect.php");
 } else {
     // For v6.x, v7.x
-    include("../../../init.php");
+    include_once("../../../init.php");
 }
 
-include(ROOTDIR . "/includes/functions.php");
-include(ROOTDIR . "/includes/ccfunctions.php");
-include(ROOTDIR . "/includes/gatewayfunctions.php");
-include(ROOTDIR . "/includes/invoicefunctions.php");
+include_once(ROOTDIR . "/includes/functions.php");
+include_once(ROOTDIR . "/includes/ccfunctions.php");
+include_once(ROOTDIR . "/includes/gatewayfunctions.php");
+include_once(ROOTDIR . "/includes/invoicefunctions.php");
 require_once(ROOTDIR . '/modules/gateways/fasterpay/helpers/FasterpayHelper.php');
 require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayGateway.php');
 require_once(ROOTDIR . '/includes/api/fasterpay_api/lib/autoload.php');
@@ -208,12 +208,23 @@ class FasterPay_Pingback {
                 throw new \Exception('Invalid transaction');
             }
 
-            $refundedAmount = $this->getInvoiceRefundedAmount($invoiceId);
-            $pingbackRefundedAmount = $paymentOrder['refunded_amount'];
+            $pingbackData = $this->request['payment_order'];
+            $referenceId = $pingbackData['reference_id'];
+            $fpTxnId = $pingbackData['id'];
+            $status = $pingbackData['status'];
 
-            // if pingback refunded amount <= invoice refunded amount -> transaction processing/processed -> return ok
-            if (!($pingbackRefundedAmount > $refundedAmount
-                || ($pingbackRefundedAmount == $refundedAmount && $pingbackRefundedAmount == 0))) {
+            $successStatus = [
+                Fasterpay_Helper::REFUNDED_STATUS,
+                Fasterpay_Helper::REFUNDED_PARTIALLY_STATUS
+            ];
+
+            if (!in_array($status, $successStatus)) {
+                return;
+            }
+
+            if (!$this->helper->referenceIdExisted($referenceId)) {
+                $this->helper->logReferenceId($referenceId, $fpTxnId);
+            } else {
                 return;
             }
 
@@ -302,7 +313,7 @@ class FasterPay_Pingback {
         return $invoiceId;
     }
 
-    function getInvoiceFromInvoiceList($invoiceList) {
+    public function getInvoiceFromInvoiceList($invoiceList) {
         $invoiceid = null;
         if (count($invoiceList) == 1) {
             if ($this->request['payment_order']['status'] == self::PINGBACK_STATUS_SUCCESS && $invoiceList[0]['status'] == 'Paid') {
@@ -325,7 +336,7 @@ class FasterPay_Pingback {
      * @param $subscriptionId
      * @param $conditions
      */
-    function updateSubscriptionId($subscriptionId, $conditions)
+    public function updateSubscriptionId($subscriptionId, $conditions)
     {
         update_query('tblhosting', ['subscriptionid' => $subscriptionId], $conditions);
     }
@@ -350,7 +361,15 @@ class FasterPay_Pingback {
             return false;
         }
 
-        if (!isset($this->request['payment_order']['refunded_amount'])) {
+        if (!isset($this->request['payment_order']['total_refunded_amount'])) {
+            return false;
+        }
+
+        if (!isset($this->request['payment_order']['reference_id'])) {
+            return false;
+        }
+
+        if (!isset($this->request['payment_order']['status'])) {
             return false;
         }
 

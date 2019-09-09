@@ -15,6 +15,8 @@ class Fasterpay_Helper {
     const PERIOD_TYPE_YEAR          = 'y';
     const PERIOD_TYPE_MONTH         = 'm'; 
     const PERIOD_TYPE_DAY           = 'd';
+    const REFUNDED_STATUS           = 'reversal_refunded';
+    const REFUNDED_PARTIALLY_STATUS = 'reversal_refunded_partially';
 
     function getHostIdFromInvoice($invoiceId) {
         $query = "
@@ -192,4 +194,16 @@ class Fasterpay_Helper {
         return $returndata;
     }
 
+    public function referenceIdExisted($referenceId, $dump = false)
+    {
+        return (bool)(mysql_fetch_array(select_query('fp_refund_transactions', 'count(*)', ["refund_reference_id" => $referenceId]))[0]);
+    }
+
+    public function logReferenceId($referenceId, $txnId)
+    {
+        insert_query("fp_refund_transactions", [
+            "refund_reference_id" => $referenceId,
+            "transaction_id" => $txnId
+        ]);
+    }
 }

@@ -74,6 +74,7 @@ function fasterpay_refund($params)
     $orderId = $params['transid'];
     $amount = $params['amount'];
 
+    // if no admin session found -> run in refund pingback
     if (!isAdminLoggedIn()) {
         return array(
             'status' => 'success',
@@ -96,12 +97,37 @@ function fasterpay_refund($params)
             'rawdata' => $e->getMessage(),
         );
     }
+
     if ($refundResponse->isSuccessful()) {
         $customStatus = array(
             'message_type' => 'custom',
             'title' => 'Pending Refund Transaction',
             'content' => 'Your transaction is being processed!'
         );
+
+        $reponseData = $refundResponse->getResponse('data');
+        $referenceId = $reponseData['reference_id'];
+        $fpTxnId = $reponseData['id'];
+        $status = $reponseData['status'];
+
+        $helper = new Fasterpay_Helper();
+        if (!$helper->referenceIdExisted($referenceId)) {
+            $helper->logReferenceId($referenceId, $fpTxnId);
+        }
+
+        $successStatus = [
+            Fasterpay_Helper::REFUNDED_STATUS,
+            Fasterpay_Helper::REFUNDED_PARTIALLY_STATUS
+        ];
+
+        if (in_array($status, $successStatus)) {
+            return array(
+                'status' => 'success',
+                'rawdata' => 'success',
+                'transid' => $orderId,
+            );
+        }
+
         return array(
             'status' => $customStatus['message_type'] . ':' . $customStatus['title'] . ':' . $customStatus['content'],
             'rawdata' => $customStatus['content']
