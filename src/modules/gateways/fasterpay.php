@@ -3,9 +3,9 @@ if (!defined("WHMCS")) {
     exit("This file cannot be accessed directly");
 }
 
-
 require_once(ROOTDIR . '/modules/gateways/fasterpay/helpers/FasterpayHelper.php');
 require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayGateway.php');
+require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayPingback.php');
 require_once(ROOTDIR . '/includes/api/fasterpay_api/lib/autoload.php');
 
 function fasterpay_MetaData()
@@ -55,8 +55,8 @@ function fasterpay_link($params)
     $form = $gateway->paymentForm()->buildForm(
         $fasterPayModel->prepareData($params),
         [
-            'autoSubmit' => false,
-            'hidePayButton' => false
+            'autoSubmit' => true,
+            'hidePayButton' => true
         ]
     );
     return $form;
@@ -115,12 +115,7 @@ function fasterpay_refund($params)
             $helper->logReferenceId($referenceId, $fpTxnId);
         }
 
-        $successStatus = [
-            Fasterpay_Helper::REFUNDED_STATUS,
-            Fasterpay_Helper::REFUNDED_PARTIALLY_STATUS
-        ];
-
-        if (in_array($status, $successStatus)) {
+        if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {
             return array(
                 'status' => 'success',
                 'rawdata' => 'success',

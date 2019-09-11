@@ -15,8 +15,6 @@ class Fasterpay_Helper {
     const PERIOD_TYPE_YEAR          = 'y';
     const PERIOD_TYPE_MONTH         = 'm'; 
     const PERIOD_TYPE_DAY           = 'd';
-    const REFUNDED_STATUS           = 'reversal_refunded';
-    const REFUNDED_PARTIALLY_STATUS = 'reversal_refunded_partially';
 
     function getHostIdFromInvoice($invoiceId) {
         $query = "
