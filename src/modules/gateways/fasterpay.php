@@ -113,14 +113,19 @@ function fasterpay_refund($params)
         $helper = new Fasterpay_Helper();
         if (!$helper->referenceIdExisted($referenceId)) {
             $helper->logReferenceId($referenceId, $fpTxnId);
+            
+            if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {
+                return array(
+                    'status' => 'success',
+                    'rawdata' => 'success',
+                    'transid' => $orderId,
+                );
+            }
         }
 
         if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {
-            return array(
-                'status' => 'success',
-                'rawdata' => 'success',
-                'transid' => $orderId,
-            );
+            $customStatus['title'] = 'Refund Successful';
+            $customStatus['content'] = 'The requested amount has now been refunded by the payment gateway';
         }
 
         return array(
