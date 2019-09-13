@@ -111,7 +111,7 @@ function fasterpay_refund($params)
         $status = $reponseData['status'];
 
         $helper = new Fasterpay_Helper();
-        if (!$helper->referenceIdExisted($referenceId)) {
+        if (!$helper->isReferenceIdExisted($referenceId)) {
             $helper->logReferenceId($referenceId, $fpTxnId);
             
             if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {

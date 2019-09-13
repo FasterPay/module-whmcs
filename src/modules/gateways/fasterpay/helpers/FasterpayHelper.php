@@ -192,7 +192,7 @@ class Fasterpay_Helper {
         return $returndata;
     }
 
-    public function referenceIdExisted($referenceId)
+    public function isReferenceIdExisted($referenceId)
     {
         return (bool)(mysql_fetch_array(select_query('fp_refund_transactions', 'count(*)', ["refund_reference_id" => $referenceId]))[0]);
     }

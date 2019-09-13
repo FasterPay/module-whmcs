@@ -225,7 +225,7 @@ class FasterPay_Pingback {
                 return;
             }
 
-            if (!$this->helper->referenceIdExisted($referenceId)) {
+            if (!$this->helper->isReferenceIdExisted($referenceId)) {
                 $this->helper->logReferenceId($referenceId, $fpTxnId);
             } else {
                 return;
