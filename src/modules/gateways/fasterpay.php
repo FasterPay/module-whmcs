@@ -3,9 +3,9 @@ if (!defined("WHMCS")) {
     exit("This file cannot be accessed directly");
 }
 
-
 require_once(ROOTDIR . '/modules/gateways/fasterpay/helpers/FasterpayHelper.php');
 require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayGateway.php');
+require_once(ROOTDIR . '/modules/gateways/fasterpay/FasterpayPingback.php');
 require_once(ROOTDIR . '/includes/api/fasterpay_api/lib/autoload.php');
 
 function fasterpay_MetaData()
@@ -55,8 +55,8 @@ function fasterpay_link($params)
     $form = $gateway->paymentForm()->buildForm(
         $fasterPayModel->prepareData($params),
         [
-            'autoSubmit' => false,
-            'hidePayButton' => false
+            'autoSubmit' => true,
+            'hidePayButton' => true
         ]
     );
     return $form;
@@ -71,14 +71,23 @@ function fasterpay_refund($params)
         );
     }
 
+    $orderId = $params['transid'];
+    $amount = $params['amount'];
+
+    // if no admin session found -> run in refund pingback
+    if (!isAdminLoggedIn()) {
+        return array(
+            'status' => 'success',
+            'rawdata' => 'success',
+            'transid' => $orderId,
+        );
+    }
+
     $gateway = new FasterPay\Gateway([
         'publicKey' => $params['appKey'],
         'privateKey' => $params['secretKey'],
         'isTest' => $params['isTest'] == 'on' ? 1 : 0,
     ]);
-
-    $orderId = $params['transid'];
-    $amount = $params['amount'];
 
     try {
         $refundResponse = $gateway->paymentService()->refund($orderId, $amount);
@@ -88,11 +97,40 @@ function fasterpay_refund($params)
             'rawdata' => $e->getMessage(),
         );
     }
+
     if ($refundResponse->isSuccessful()) {
+        $customStatus = array(
+            'message_type' => 'custom',
+            'title' => 'Pending Refund Transaction',
+            'content' => 'Your transaction is being processed!'
+        );
+
+        $reponseData = $refundResponse->getResponse('data');
+        $referenceId = $reponseData['reference_id'];
+        $fpTxnId = $reponseData['id'];
+        $status = $reponseData['status'];
+
+        $helper = new Fasterpay_Helper();
+        if (!$helper->isReferenceIdExisted($referenceId)) {
+            $helper->logReferenceId($referenceId, $fpTxnId);
+            
+            if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {
+                return array(
+                    'status' => 'success',
+                    'rawdata' => 'success',
+                    'transid' => $orderId,
+                );
+            }
+        }
+
+        if (in_array($status, FasterPay_Pingback::ALL_REFUNDED_STATUS)) {
+            $customStatus['title'] = 'Refund Successful';
+            $customStatus['content'] = 'The requested amount has now been refunded by the payment gateway';
+        }
+
         return array(
-            'status' => 'success',
-            'rawdata' => 'success',
-            'transid' => $orderId,
+            'status' => $customStatus['message_type'] . ':' . $customStatus['title'] . ':' . $customStatus['content'],
+            'rawdata' => $customStatus['content']
         );
     } else {
         return array(
@@ -146,4 +184,9 @@ function fasterpay_cancelSubscription($params)
             'rawdata' => $cancellationResponse->getErrors()->getMessage(),
         );
     }
+}
+
+function isAdminLoggedIn()
+{
+    return !empty($_SESSION['adminid']);
 }
